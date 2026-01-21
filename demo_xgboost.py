@@ -3,7 +3,7 @@ Interactive Demo - XGBoost Balaji Framework AI
 Shows how the model reduces 15-20 minute questionnaire to 2-3 minutes
 """
 
-from xgboost_balaji_predictor import XGBoostBalajiPredictor
+from assessment_ai_predictor import AssessmentAIPredictor
 import pandas as pd
 
 def demo_scenario(predictor, scenario_name, country, crop, partner, irrigation, hired_workers, area):
@@ -72,8 +72,8 @@ def main():
     
     # Load the trained model
     print("\n🔄 Loading trained XGBoost models...")
-    predictor = XGBoostBalajiPredictor()
-    predictor.load_models('xgboost_balaji_models.pkl')
+    predictor = AssessmentAIPredictor()
+    predictor.load_models('assessment_ai_models.pkl')
     print("✅ Models loaded successfully!")
     
     # Demo Scenario 1: Indian Potato Farmer with Irrigation

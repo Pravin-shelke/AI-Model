@@ -143,7 +143,7 @@ if __name__ == "__main__":
     # Generate 50 synthetic samples
     generate_synthetic_balaji_data(
         input_csv='Balaji  Framework 2025-2026-01-20.csv',
-        output_csv='Balaji_Framework_Training_Data.csv',
+        output_csv='Assessment_AI_Training_Data.csv',
         num_samples=50
     )
     
@@ -151,5 +151,5 @@ if __name__ == "__main__":
     print("  🎯 Next Step: Train XGBoost Model")
     print("=" * 70)
     print("\n  Run this command:")
-    print("  python xgboost_balaji_predictor.py")
+    print("  python assessment_ai_predictor.py")
     print("\n" + "=" * 70)

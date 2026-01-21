@@ -5,8 +5,10 @@ Serves predictions to React Native app
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from xgboost_balaji_predictor import XGBoostBalajiPredictor
+from assessment_ai_predictor import AssessmentAIPredictor
 import logging
+import json
+import os
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -17,9 +19,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load AI model at startup
-predictor = XGBoostBalajiPredictor()
-logger.info("Loading XGBoost Balaji AI models...")
-predictor.load_models('xgboost_balaji_models.pkl')
+predictor = AssessmentAIPredictor()
+logger.info("Loading Assessment AI models...")
+predictor.load_models('assessment_ai_models.pkl')
 logger.info(" Models loaded successfully!")
 
 
@@ -28,9 +30,9 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'service': 'Balaji Framework XGBoost AI',
+        'service': 'Assessment AI - SAI Framework Predictor',
         'models_loaded': len(predictor.models),
-        'version': '1.0.0'
+        'version': '2.0.0'
     })
 
 
@@ -205,16 +207,168 @@ def get_indicators():
         }), 500
 
 
+@app.route('/api/v1/questions', methods=['GET'])
+def get_questions():
+    """
+    Get all available questions with metadata
+    Loads from questions_config.json instead of hardcoding
+    
+    Response:
+    {
+        "success": true,
+        "total_questions": 266,
+        "total_categories": 30,
+        "questions": [...],
+        "categories": [...]
+    }
+    """
+    try:
+        # Load questions config
+        config_file = 'questions_config.json'
+        if not os.path.exists(config_file):
+            return jsonify({
+                'success': False,
+                'error': 'Questions config file not found'
+            }), 404
+        
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        
+        # Flatten questions for easy access
+        all_questions = []
+        for category in config['categories']:
+            for question in category['questions']:
+                question['categoryId'] = category['categoryId']
+                question['categoryName'] = category['categoryName']
+                question['displayId'] = category['displayId']
+                
+                # Add AI availability info
+                question['aiAvailable'] = question['indicatorCode'] in predictor.models
+                if question['aiAvailable']:
+                    model_info = predictor.models[question['indicatorCode']]
+                    question['aiTrainingSamples'] = len(model_info['encoder'].classes_)
+                
+                all_questions.append(question)
+        
+        return jsonify({
+            'success': True,
+            'total_questions': len(all_questions),
+            'total_categories': len(config['categories']),
+            'version': config.get('version', '1.0'),
+            'lastUpdated': config.get('lastUpdated'),
+            'questions': all_questions,
+            'categories': config['categories']
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error loading questions: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/v1/questions/<indicator_code>', methods=['GET'])
+def get_question_details(indicator_code):
+    """
+    Get details for a specific indicator/question
+    
+    Response includes AI training statistics if available
+    """
+    try:
+        # Load questions config
+        with open('questions_config.json', 'r') as f:
+            config = json.load(f)
+        
+        # Find the question
+        question = None
+        for category in config['categories']:
+            for q in category['questions']:
+                if q['indicatorCode'] == indicator_code:
+                    question = q.copy()
+                    question['categoryId'] = category['categoryId']
+                    question['categoryName'] = category['categoryName']
+                    question['displayId'] = category['displayId']
+                    break
+            if question:
+                break
+        
+        if not question:
+            return jsonify({
+                'success': False,
+                'error': f'Question {indicator_code} not found'
+            }), 404
+        
+        # Add AI model info if available
+        question['aiAvailable'] = indicator_code in predictor.models
+        if question['aiAvailable']:
+            model_info = predictor.models[indicator_code]
+            question['aiInfo'] = {
+                'trained': True,
+                'possibleValues': model_info['encoder'].classes_.tolist(),
+                'trainingSamples': len(model_info['encoder'].classes_)
+            }
+        else:
+            question['aiInfo'] = {
+                'trained': False,
+                'reason': 'Insufficient training data (needs >30% data availability and 10+ samples)'
+            }
+        
+        return jsonify({
+            'success': True,
+            'question': question
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting question details: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/v1/indicators', methods=['GET'])
+def get_trained_indicators():
+    """
+    Get list of all indicators that have trained AI models
+    
+    Response:
+    {
+        "success": true,
+        "total_trained": 120,
+        "total_possible": 266,
+        "indicators": ["BH-1", "BH-2", ...]
+    }
+    """
+    try:
+        trained_indicators = list(predictor.models.keys())
+        
+        return jsonify({
+            'success': True,
+            'total_trained': len(trained_indicators),
+            'indicators': sorted(trained_indicators)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     PORT = 5001  # Using 5001 to avoid macOS AirPlay on port 5000
     
     print("=" * 70)
-    print("  🚀 Starting Balaji Framework XGBoost AI Server")
+    print("  🚀 Starting Assessment AI Server")
     print("=" * 70)
     print(f"\n  📍 Server will run on: http://localhost:{PORT}")
     print(f"  🔗 Health Check: http://localhost:{PORT}/health")
     print(f"  🤖 Prediction API: http://localhost:{PORT}/api/v1/predict")
     print(f"  📦 Batch API: http://localhost:{PORT}/api/v1/predict/batch")
+    print(f"  📋 Questions API: http://localhost:{PORT}/api/v1/questions")
+    print(f"  🔍 Indicator Details: http://localhost:{PORT}/api/v1/questions/<code>")
+    print(f"  📊 Trained Models: http://localhost:{PORT}/api/v1/indicators")
     print("\n" + "=" * 70 + "\n")
     
     # Run Flask server

@@ -5,7 +5,7 @@ Adds new assessment data and retrains the model for better accuracy
 
 import pandas as pd
 import numpy as np
-from xgboost_balaji_predictor import XGBoostBalajiPredictor
+from assessment_ai_predictor import AssessmentAIPredictor
 import os
 from datetime import datetime
 
@@ -16,8 +16,8 @@ def check_existing_data():
     
     files = {
         'Original Data': 'Balaji  Framework 2025-2026-01-20.csv',
-        'Training Data': 'Balaji_Framework_Training_Data.csv',
-        'Current Models': 'xgboost_balaji_models.pkl'
+        'Training Data': 'Assessment_AI_Training_Data.csv',
+        'Current Models': 'assessment_ai_models.pkl'
     }
     
     for name, filename in files.items():
@@ -54,7 +54,7 @@ def add_new_assessments(new_csv_file):
     print(f"✓ Loaded {len(df_new)} new records")
     
     # Load existing training data
-    training_file = 'Balaji_Framework_Training_Data.csv'
+    training_file = 'Assessment_AI_Training_Data.csv'
     if os.path.exists(training_file):
         df_existing = pd.read_csv(training_file, encoding='utf-8')
         print(f"✓ Existing training data: {len(df_existing)} records")
@@ -68,7 +68,7 @@ def add_new_assessments(new_csv_file):
     
     # Backup old training data
     if os.path.exists(training_file):
-        backup_file = f'Balaji_Framework_Training_Data_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        backup_file = f'Assessment_AI_Training_Data_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
         df_existing.to_csv(backup_file, index=False)
         print(f"✓ Backed up old data to: {backup_file}")
     
@@ -85,16 +85,16 @@ def retrain_model():
     print("=" * 70)
     
     # Backup old models
-    if os.path.exists('xgboost_balaji_models.pkl'):
-        backup_file = f'xgboost_balaji_models_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pkl'
-        os.rename('xgboost_balaji_models.pkl', backup_file)
+    if os.path.exists('assessment_ai_models.pkl'):
+        backup_file = f'assessment_ai_models_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pkl'
+        os.rename('assessment_ai_models.pkl', backup_file)
         print(f"✓ Backed up old models to: {backup_file}")
     
     # Initialize predictor
-    predictor = XGBoostBalajiPredictor()
+    predictor = AssessmentAIPredictor()
     
     # Load training data
-    predictor.load_data('Balaji_Framework_Training_Data.csv')
+    predictor.load_data('Assessment_AI_Training_Data.csv')
     
     # Prepare data
     predictor.prepare_training_data()
@@ -103,7 +103,7 @@ def retrain_model():
     trained_count = predictor.train_models()
     
     # Save new models
-    predictor.save_models('xgboost_balaji_models.pkl')
+    predictor.save_models('assessment_ai_models.pkl')
     
     print("\n✅ Retraining Complete!")
     print("=" * 70)
@@ -211,7 +211,7 @@ def main():
             from generate_training_data import generate_synthetic_balaji_data
             generate_synthetic_balaji_data(
                 input_csv='Balaji  Framework 2025-2026-01-20.csv',
-                output_csv='Balaji_Framework_Training_Data.csv',
+                output_csv='Assessment_AI_Training_Data.csv',
                 num_samples=num_samples
             )
             
@@ -242,7 +242,7 @@ def main():
             from generate_training_data import generate_synthetic_balaji_data
             generate_synthetic_balaji_data(
                 input_csv='Balaji  Framework 2025-2026-01-20.csv',
-                output_csv='Balaji_Framework_Training_Data.csv',
+                output_csv='Assessment_AI_Training_Data.csv',
                 num_samples=num_samples
             )
             

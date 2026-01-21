@@ -1,5 +1,5 @@
 """
-XGBoost AI Model for Balaji Framework Assessment
+Assessment AI - XGBoost Predictor for SAI Framework
 Reduces 15-20 minute questionnaire to 2-3 minutes
 
 User provides 6 key inputs:
@@ -23,7 +23,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-class XGBoostBalajiPredictor:
+class AssessmentAIPredictor:
     def __init__(self):
         self.models = {}
         self.label_encoders = {}
@@ -32,7 +32,7 @@ class XGBoostBalajiPredictor:
         self.df = None
         
     def load_data(self, csv_file):
-        """Load Balaji Framework CSV data"""
+        """Load SAI Framework CSV assessment data"""
         print("\n🔄 Loading Balaji Framework data...")
         self.df = pd.read_csv(csv_file, encoding='utf-8')
         print(f"✓ Loaded {len(self.df)} records with {len(self.df.columns)} columns")

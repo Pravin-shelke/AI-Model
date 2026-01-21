@@ -107,7 +107,7 @@ def add_to_training_data(new_data_csv):
     print(f"✓ Your data: {len(df_new)} records")
     
     # Load existing training data
-    training_file = 'Balaji_Framework_Training_Data.csv'
+    training_file = 'Assessment_AI_Training_Data.csv'
     
     if os.path.exists(training_file):
         df_existing = pd.read_csv(training_file, encoding='utf-8')
@@ -199,20 +199,20 @@ def main():
         print("\n🚀 Starting Model Retraining...")
         print("=" * 70)
         
-        from xgboost_balaji_predictor import XGBoostBalajiPredictor
+        from assessment_ai_predictor import AssessmentAIPredictor
         
         # Backup old models
-        if os.path.exists('xgboost_balaji_models.pkl'):
+        if os.path.exists('assessment_ai_models.pkl'):
             backup_model = f'Models_Backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pkl'
-            os.rename('xgboost_balaji_models.pkl', backup_model)
+            os.rename('assessment_ai_models.pkl', backup_model)
             print(f"✓ Backed up old models to: {backup_model}")
         
         # Train new models
-        predictor = XGBoostBalajiPredictor()
-        predictor.load_data('Balaji_Framework_Training_Data.csv')
+        predictor = AssessmentAIPredictor()
+        predictor.load_data('Assessment_AI_Training_Data.csv')
         predictor.prepare_training_data()
         trained_count = predictor.train_models()
-        predictor.save_models('xgboost_balaji_models.pkl')
+        predictor.save_models('assessment_ai_models.pkl')
         
         print("\n✅ RETRAINING COMPLETE!")
         print(f"   • Trained {trained_count} models")

@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-01-21",
+  "categories": [
+    {
+      "categoryId": "CM",
+      "categoryName": "Community Management",
+      "displayId": "7.1.1",
+      "type": "practice",
+      "questions": [
+        {
+          "indicatorCode": "CM-1.a",
+          "description": "Safety training",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No", "Partial"],
+          "helpText": "Does the operation provide safety training to workers?"
+        },
+        {
+          "indicatorCode": "CM-1.b",
+          "description": "Training records kept",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No"],
+          "helpText": "Are training records maintained and up to date?"
+        },
+        {
+          "indicatorCode": "CM-1.c",
+          "description": "Emergency procedures documented",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No"]
+        },
+        {
+          "indicatorCode": "CM-2",
+          "description": "Grievance mechanism in place",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No", "Under Development"]
+        }
+      ]
+    },
+    {
+      "categoryId": "BH",
+      "categoryName": "Biodiversity and Habitat",
+      "displayId": "7.2.1",
+      "type": "essential",
+      "questions": [
+        {
+          "indicatorCode": "BH-1",
+          "description": "Biodiversity conservation plan",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No", "In Progress"]
+        },
+        {
+          "indicatorCode": "BH-2",
+          "description": "Native species protection",
+          "type": "radio",
+          "required": true,
+          "options": ["Yes", "No"]
+        }
+      ]
+    }
+  ]
+}
