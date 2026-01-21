@@ -22,7 +22,7 @@ python retrain_model.py --retrain
 
 ### 3. Start API Server
 ```bash
-./start_ai_server.sh
+python src/api/server.py
 ```
 
 Server runs on http://localhost:5001
