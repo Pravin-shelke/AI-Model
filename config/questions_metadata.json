@@ -1,0 +1,54 @@
+{
+  "version": "2.0",
+  "questions": [
+    {
+      "indicatorCode": "BH-1",
+      "displayId": "1.0.0",
+      "outcomeId": "8046",
+      "outcomeName": "Biodiversity and Habitat",
+      "description": "Biodiversity conservation plan",
+      "type": "radio",
+      "options": ["Yes", "No", "In Progress"],
+      "required": true,
+      "conditional": false
+    },
+    {
+      "indicatorCode": "BH-2",
+      "displayId": "1.0.0",
+      "outcomeId": "8046",
+      "outcomeName": "Biodiversity and Habitat",
+      "description": "Native species protection",
+      "type": "radio",
+      "options": ["Yes", "No"],
+      "required": true,
+      "conditional": true,
+      "showIf": {
+        "indicator": "BH-1",
+        "value": "Yes"
+      }
+    },
+    {
+      "indicatorCode": "CM-5",
+      "displayId": "2.0.0",
+      "outcomeId": "8047",
+      "outcomeName": "Community Leadership",
+      "description": "Community engagement description",
+      "type": "text",
+      "required": false,
+      "conditional": false,
+      "maxLength": 500
+    },
+    {
+      "indicatorCode": "WQ-3",
+      "displayId": "6.0.0",
+      "outcomeId": "8051",
+      "outcomeName": "Water Impact",
+      "description": "Water sources used",
+      "type": "checkbox",
+      "options": ["Ground water", "Surface water", "Rainwater", "Municipal supply"],
+      "required": true,
+      "conditional": false,
+      "multiSelect": true
+    }
+  ]
+}

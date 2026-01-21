@@ -5,19 +5,25 @@ Adds new assessment data and retrains the model for better accuracy
 
 import pandas as pd
 import numpy as np
-from assessment_ai_predictor import AssessmentAIPredictor
+import sys
 import os
 from datetime import datetime
+
+# Add parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from src.models.predictor import AssessmentAIPredictor
 
 def check_existing_data():
     """Check what training data currently exists"""
     print("\n🔍 Checking Existing Training Data...")
     print("=" * 70)
     
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..')
     files = {
-        'Original Data': 'Balaji  Framework 2025-2026-01-20.csv',
-        'Training Data': 'Assessment_AI_Training_Data.csv',
-        'Current Models': 'assessment_ai_models.pkl'
+        'Original Data': os.path.join(base_dir, 'data', 'original', 'Original_SAI_Framework_2025-01-20.csv'),
+        'Training Data': os.path.join(base_dir, 'data', 'training', 'Assessment_AI_Training_Data.csv'),
+        'Current Models': os.path.join(base_dir, 'models', 'assessment_ai_models.pkl')
     }
     
     for name, filename in files.items():
@@ -54,7 +60,8 @@ def add_new_assessments(new_csv_file):
     print(f"✓ Loaded {len(df_new)} new records")
     
     # Load existing training data
-    training_file = 'Assessment_AI_Training_Data.csv'
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..')
+    training_file = os.path.join(base_dir, 'data', 'training', 'Assessment_AI_Training_Data.csv')
     if os.path.exists(training_file):
         df_existing = pd.read_csv(training_file, encoding='utf-8')
         print(f"✓ Existing training data: {len(df_existing)} records")
@@ -68,7 +75,9 @@ def add_new_assessments(new_csv_file):
     
     # Backup old training data
     if os.path.exists(training_file):
-        backup_file = f'Assessment_AI_Training_Data_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        backup_dir = os.path.join(base_dir, 'data', 'exports')
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_file = os.path.join(backup_dir, f'Assessment_AI_Training_Data_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
         df_existing.to_csv(backup_file, index=False)
         print(f"✓ Backed up old data to: {backup_file}")
     
@@ -85,16 +94,21 @@ def retrain_model():
     print("=" * 70)
     
     # Backup old models
-    if os.path.exists('assessment_ai_models.pkl'):
-        backup_file = f'assessment_ai_models_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pkl'
-        os.rename('assessment_ai_models.pkl', backup_file)
+    base_dir = os.path.join(os.path.dirname(__file__), '..', '..')
+    models_dir = os.path.join(base_dir, 'models')
+    model_path = os.path.join(models_dir, 'assessment_ai_models.pkl')
+    
+    if os.path.exists(model_path):
+        backup_file = os.path.join(models_dir, f'assessment_ai_models_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pkl')
+        os.rename(model_path, backup_file)
         print(f"✓ Backed up old models to: {backup_file}")
     
     # Initialize predictor
     predictor = AssessmentAIPredictor()
     
     # Load training data
-    predictor.load_data('Assessment_AI_Training_Data.csv')
+    training_file = os.path.join(base_dir, 'data', 'training', 'Assessment_AI_Training_Data.csv')
+    predictor.load_data(training_file)
     
     # Prepare data
     predictor.prepare_training_data()
@@ -103,7 +117,7 @@ def retrain_model():
     trained_count = predictor.train_models()
     
     # Save new models
-    predictor.save_models('assessment_ai_models.pkl')
+    predictor.save_models(model_path)
     
     print("\n✅ Retraining Complete!")
     print("=" * 70)
