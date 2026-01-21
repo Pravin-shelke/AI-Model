@@ -1,0 +1,33 @@
+Essential Python Files (Required):
+- xgboost_balaji_predictor.py
+- flask_api_server.py
+- retrain_model.py
+- add_real_data.py
+- generate_training_data.py
+- clean_training_data.py
+- demo_xgboost.py
+- test_api.py
+
+Integration Files:
+- BalajiAIService.ts
+- start_ai_server.sh
+- requirements.txt
+
+Documentation:
+- README.md
+- INTEGRATION_SUMMARY.md
+- REACT_NATIVE_INTEGRATION.md
+- TRAINING_GUIDE.md
+- ADD_DATA_GUIDE.md
+
+Original Data (Small):
+- Balaji Framework 2025-2026-01-20.csv
+
+Configuration:
+- .gitignore
+
+DO NOT COMMIT:
+- *.pkl files (40-116 MB each) - regenerate with training
+- Large CSV files - regenerate from original
+- Backup files
+- venv/ folder

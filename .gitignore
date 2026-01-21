@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Model files (too large for git - regenerate with retrain_model.py)
+*.pkl
+
+# Training data (large CSV files)
+*.csv
+!Balaji Framework 2025-2026-01-20.csv
+
+# Backup files
+*_backup_*
+*_BEFORE_*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
