@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 ### 2. Start API Server
 ```bash
-./scripts/start_server.sh
+python src/api/server.py
 ```
 
 Server runs on http://localhost:5001
