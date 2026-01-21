@@ -3,12 +3,15 @@ Flask API Server for XGBoost Balaji Framework AI
 Serves predictions to React Native app
 """
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from assessment_ai_predictor import AssessmentAIPredictor
+from models.predictor import AssessmentAIPredictor
 import logging
 import json
-import os
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -18,10 +21,15 @@ CORS(app)  # Enable CORS for React Native
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Get project root directory
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
+CONFIG_DIR = os.path.join(PROJECT_ROOT, 'config')
+
 # Load AI model at startup
 predictor = AssessmentAIPredictor()
 logger.info("Loading Assessment AI models...")
-predictor.load_models('assessment_ai_models.pkl')
+predictor.load_models(os.path.join(MODELS_DIR, 'assessment_ai_models.pkl'))
 logger.info(" Models loaded successfully!")
 
 
@@ -224,7 +232,7 @@ def get_questions():
     """
     try:
         # Load questions config
-        config_file = 'questions_config.json'
+        config_file = os.path.join(CONFIG_DIR, 'questions_config.json')
         if not os.path.exists(config_file):
             return jsonify({
                 'success': False,
@@ -277,7 +285,7 @@ def get_question_details(indicator_code):
     """
     try:
         # Load questions config
-        with open('questions_config.json', 'r') as f:
+        with open(os.path.join(CONFIG_DIR, 'questions_config.json'), 'r') as f:
             config = json.load(f)
         
         # Find the question
