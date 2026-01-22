@@ -1,18 +1,3 @@
-"""
-Assessment AI - XGBoost Predictor for SAI Framework
-Reduces 15-20 minute questionnaire to 2-3 minutes
-
-User provides 6 key inputs:
-1. Country
-2. Crop
-3. Partner Name
-4. Irrigation Type
-5. Hired Workers
-6. Farm Size (Area)
-
-AI predicts remaining 266+ SAI assessment indicators
-"""
-
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -32,66 +17,52 @@ class AssessmentAIPredictor:
         self.df = None
         
     def load_data(self, csv_file):
-        """Load SAI Framework CSV assessment data"""
-        print("\n🔄 Loading Balaji Framework data...")
+        print(f"\nLoading data from {csv_file}...")
         self.df = pd.read_csv(csv_file, encoding='utf-8')
-        print(f"✓ Loaded {len(self.df)} records with {len(self.df.columns)} columns")
+        print(f"Loaded {len(self.df)} records")
         
-        # Define the 6 essential input features
         self.feature_columns = [
-            'country_code',      # Country
-            'crop_name',         # Crop
-            'Partner',           # Partner Name
-            'irrigation',        # Irrigation Type
-            'hired_workers',     # Hired Workers
-            'area'              # Farm Size
+            'country_code',
+            'crop_name',
+            'Partner',
+            'irrigation',
+            'hired_workers',
+            'area'
         ]
         
-        # Get all SAI assessment indicator columns (266 columns starting with BH-, BP-, etc.)
         sai_prefixes = ['BH-', 'BP-', 'CE-', 'CW-', 'CT-', 'CC-', 'HS-', 'HW-', 'HP-', 'HA-', 'HH-',
                        'OR-', 'OP-', 'OS-', 'OT-', 'OF-', 'OE-', 'OM-', 'OW-',
                        'SR-', 'SW-', 'SF-', 'SC-', 'SM-',
                        'WI-', 'WP-', 'WQ-',
                        'CM-', 'CO-', 'FM-', 'IO-', 'IM-', 'LM-', 'NM-', 'PM-', 'RM-', 'ST-']
         
-        # Find all target columns (SAI indicators)
         self.target_columns = []
         for col in self.df.columns:
-            col_stripped = col.strip()
-            if any(col_stripped.startswith(prefix) for prefix in sai_prefixes):
-                if col_stripped not in self.feature_columns:
+            if any(col.strip().startswith(p) for p in sai_prefixes):
+                if col not in self.feature_columns:
                     self.target_columns.append(col)
         
-        print(f"✓ Identified {len(self.feature_columns)} input features")
-        print(f"✓ Identified {len(self.target_columns)} assessment indicators to predict")
-        
+        print(f"Found {len(self.target_columns)} indicators")
         return self.df
     
     def prepare_training_data(self):
-        """Prepare data for training"""
-        print("\n🔄 Preparing training data...")
+        print("\nPreparing data...")
         
-        # Create label encoders for categorical features
         for col in self.feature_columns:
             if self.df[col].dtype == 'object':
                 le = LabelEncoder()
-                # Handle missing values
                 self.df[col] = self.df[col].fillna('Unknown')
                 self.df[col + '_encoded'] = le.fit_transform(self.df[col])
                 self.label_encoders[col] = le
         
-        # Convert area to numeric
         if 'area' in self.feature_columns:
             self.df['area'] = pd.to_numeric(self.df['area'], errors='coerce').fillna(0)
         
-        print("✓ Data preparation complete")
+        print("Data ready")
     
     def train_models(self):
-        """Train XGBoost models for each assessment indicator"""
-        print("\n🚀 Training XGBoost models...")
-        print("This will create one model for each of the 266+ assessment indicators")
+        print("\nTraining models...")
         
-        # Prepare feature matrix
         X_cols = []
         for col in self.feature_columns:
             if col + '_encoded' in self.df.columns:

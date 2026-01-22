@@ -3,7 +3,7 @@
 # Start Balaji Framework XGBoost AI Server
 # This script starts the Flask API server for your React Native app
 
-echo "🚀 Starting Assessment AI Server..."
+echo " Starting Assessment AI Server..."
 
 cd /Users/pravinshelke/Documents/AI-Model
 
