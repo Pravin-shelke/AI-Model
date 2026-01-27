@@ -8,7 +8,7 @@
       "outcomeName": "Biodiversity and Habitat",
       "description": "Biodiversity conservation plan",
       "type": "radio",
-      "options": ["Yes", "No", "In Progress"],
+      "options": ["Yes", "No"],
       "required": true,
       "conditional": false
     },
