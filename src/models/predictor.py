@@ -4,6 +4,7 @@ import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import joblib
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -15,6 +16,22 @@ class AssessmentAIPredictor:
         self.feature_columns = []
         self.target_columns = []
         self.df = None
+        self.feature_modes = {}
+        self.min_training_samples = 20
+        self.questions_metadata = {}
+        self.suggest_thresholds = {
+            'radio_binary': 80.0,
+            'radio_multiclass': 70.0
+        }
+
+    def load_questions_metadata(self, json_file):
+        """Load question metadata for type-aware prediction behavior"""
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        self.questions_metadata = {
+            q.get('indicatorCode'): q for q in data.get('questions', [])
+        }
+        print(f"Loaded metadata for {len(self.questions_metadata)} questions")
         
     def load_data(self, csv_file):
         print(f"\nLoading data from {csv_file}...")
@@ -48,12 +65,28 @@ class AssessmentAIPredictor:
     def prepare_training_data(self):
         print("\nPreparing data...")
         
+        # Normalize hired_workers column to handle boolean and string values
+        if 'hired_workers' in self.df.columns:
+            # Convert booleans and variations to 'Yes'/'No'
+            self.df['hired_workers'] = self.df['hired_workers'].apply(lambda x: 
+                'Yes' if x in [True, 'True', 'TRUE', 'yes', 'YES', 'Y', 1, '1'] 
+                else 'No' if x in [False, 'False', 'FALSE', 'no', 'NO', 'N', 0, '0']
+                else str(x) if pd.notna(x) else 'Unknown'
+            )
+        
         for col in self.feature_columns:
-            if self.df[col].dtype == 'object':
+            if self.df[col].dtype == 'object' or col == 'hired_workers':
                 le = LabelEncoder()
-                self.df[col] = self.df[col].fillna('Unknown')
-                self.df[col + '_encoded'] = le.fit_transform(self.df[col])
+                # Convert all values to strings first
+                values = self.df[col].astype(str).fillna('Unknown')
+                classes = values.unique().tolist()
+                if 'Unknown' not in classes:
+                    classes.append('Unknown')
+                le.fit(classes)
+                self.df[col] = values
+                self.df[col + '_encoded'] = le.transform(values)
                 self.label_encoders[col] = le
+                self.feature_modes[col] = values.mode(dropna=True)[0]
         
         if 'area' in self.feature_columns:
             self.df['area'] = pd.to_numeric(self.df['area'], errors='coerce').fillna(0)
@@ -78,6 +111,13 @@ class AssessmentAIPredictor:
         # Train a model for each target column
         for idx, target_col in enumerate(self.target_columns, 1):
             try:
+                # Skip targets that are not suitable for ML prediction
+                meta = self.questions_metadata.get(target_col, {})
+                q_type = meta.get('type')
+                if q_type in {'text', 'checkbox'}:
+                    skipped_count += 1
+                    continue
+
                 # Skip if all values are null or same
                 if self.df[target_col].isna().all():
                     skipped_count += 1
@@ -104,17 +144,28 @@ class AssessmentAIPredictor:
                 if len(y) < 10:
                     skipped_count += 1
                     continue
+
+                # Skip if severely imbalanced (model will always guess majority)
+                value_counts = y.value_counts(normalize=True)
+                if value_counts.max() > 0.85:
+                    skipped_count += 1
+                    continue
                 
                 # Create label encoder for target
                 le_target = LabelEncoder()
                 y_encoded = le_target.fit_transform(y)
+                num_classes = y_encoded.nunique()
+                if num_classes == 2:
+                    objective = 'binary:logistic'
+                else:
+                    objective = 'multi:softprob'
                 
                 # Train XGBoost classifier
                 model = xgb.XGBClassifier(
                     max_depth=3,
                     n_estimators=50,
                     learning_rate=0.1,
-                    objective='multi:softmax',
+                    objective=objective,
                     random_state=42,
                     verbosity=0
                 )
@@ -125,7 +176,9 @@ class AssessmentAIPredictor:
                 self.models[target_col] = {
                     'model': model,
                     'encoder': le_target,
-                    'feature_cols': X_cols
+                    'feature_cols': X_cols,
+                    'objective': objective,
+                    'training_samples': len(y)
                 }
                 
                 trained_count += 1
@@ -144,7 +197,7 @@ class AssessmentAIPredictor:
         
         return trained_count
     
-    def predict_assessment(self, country, crop, partner, irrigation, hired_workers, area):
+    def predict_assessment(self, country, crop, partner, irrigation, hired_workers, area, existing_answers=None):
         """
         Predict all assessment indicators based on 6 inputs
         
@@ -193,8 +246,9 @@ class AssessmentAIPredictor:
                 try:
                     encoded_val = le.transform([input_data[col]])[0]
                 except ValueError:
-                    # Handle unseen category - use most common value
-                    encoded_val = le.transform([le.classes_[0]])[0]
+                    # Handle unseen category - prefer 'Unknown', else most common value
+                    fallback = 'Unknown' if 'Unknown' in le.classes_ else self.feature_modes.get(col, le.classes_[0])
+                    encoded_val = le.transform([fallback])[0]
                 X_input.append(encoded_val)
             else:
                 X_input.append(input_data[col])
@@ -205,8 +259,63 @@ class AssessmentAIPredictor:
         predictions = {}
         high_confidence_count = 0
         
+        existing_answers = existing_answers or {}
+
         for target_col, model_data in self.models.items():
             try:
+                meta = self.questions_metadata.get(target_col, {})
+                q_type = meta.get('type')
+                options = meta.get('options', [])
+
+                # Conditional gating (only predict if condition met)
+                if meta.get('conditional'):
+                    show_if = meta.get('showIf', {})
+                    parent_indicator = show_if.get('indicator')
+                    parent_value = show_if.get('value')
+                    if parent_indicator and parent_value:
+                        parent_pred = existing_answers.get(parent_indicator)
+                        if parent_pred is None:
+                            parent_pred = predictions.get(parent_indicator, {}).get('value')
+                        if parent_pred != parent_value:
+                            predictions[target_col] = {
+                                'value': 'Unknown',
+                                'confidence': 0.0,
+                                'method': 'skipped_conditional',
+                                'questionType': q_type,
+                                'suggestOnly': True
+                            }
+                            continue
+
+                # Skip non-ML types at prediction time as safety net
+                if q_type == 'text':
+                    predictions[target_col] = {
+                        'value': 'Unknown',
+                        'confidence': 0.0,
+                        'method': 'skipped_text',
+                        'questionType': q_type,
+                        'suggestOnly': True
+                    }
+                    continue
+                if q_type == 'checkbox':
+                    predictions[target_col] = {
+                        'suggestedOptions': [],
+                        'confidence': 0.0,
+                        'method': 'skipped_checkbox',
+                        'questionType': q_type,
+                        'suggestOnly': True
+                    }
+                    continue
+
+                if model_data.get('training_samples', 0) < self.min_training_samples:
+                    predictions[target_col] = {
+                        'value': 'Unknown',
+                        'confidence': 0.0,
+                        'method': 'insufficient_data',
+                        'questionType': q_type,
+                        'suggestOnly': True
+                    }
+                    continue
+
                 model = model_data['model']
                 encoder = model_data['encoder']
                 
@@ -215,23 +324,46 @@ class AssessmentAIPredictor:
                 
                 # Get probability scores
                 y_proba = model.predict_proba(X_input)[0]
-                confidence = float(np.max(y_proba) * 100)
+                if model_data.get('objective') == 'binary:logistic' and len(y_proba) >= 2:
+                    proba_yes = float(y_proba[1])
+                    confidence = abs(proba_yes - 0.5) * 200
+                else:
+                    confidence = float(np.max(y_proba) * 100)
                 
                 # Decode prediction
                 predicted_value = encoder.inverse_transform([int(y_pred)])[0]
                 
                 predictions[target_col] = {
                     'value': predicted_value,
-                    'confidence': confidence
+                    'confidence': confidence,
+                    'method': 'xgboost',
+                    'questionType': q_type
                 }
+
+                # Suggest-only gating based on question type and confidence
+                is_binary_radio = q_type == 'radio' and len(options) == 2
+                if is_binary_radio:
+                    threshold = self.suggest_thresholds['radio_binary']
+                else:
+                    threshold = self.suggest_thresholds['radio_multiclass']
+
+                if confidence >= threshold:
+                    predictions[target_col]['suggestOnly'] = True
+                else:
+                    predictions[target_col]['value'] = 'Unknown'
+                    predictions[target_col]['confidence'] = 0.0
+                    predictions[target_col]['suggestOnly'] = True
                 
-                if confidence >= 80:
+                if predictions[target_col].get('confidence', 0) >= 80:
                     high_confidence_count += 1
                     
             except Exception as e:
                 predictions[target_col] = {
                     'value': 'Unknown',
-                    'confidence': 0.0
+                    'confidence': 0.0,
+                    'method': 'error',
+                    'questionType': q_type,
+                    'suggestOnly': True
                 }
         
         print(f"\n✅ Predictions Complete!")
@@ -302,10 +434,12 @@ if __name__ == "__main__":
     print("=" * 70)
     
     # Initialize predictor
-    predictor = XGBoostBalajiPredictor()
+    predictor = AssessmentAIPredictor()
     
     # Load data (using training data with 52 records)
     predictor.load_data('Balaji_Framework_Training_Data.csv')
+    # Load question metadata for type-aware behavior
+    predictor.load_questions_metadata('config/questions_metadata.json')
     
     # Prepare training data
     predictor.prepare_training_data()
