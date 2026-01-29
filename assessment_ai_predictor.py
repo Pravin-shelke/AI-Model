@@ -30,59 +30,6 @@ class AssessmentAIPredictor:
         self.feature_columns = []
         self.target_columns = []
         self.df = None
-        self.feature_modes = {}
-        self.binary_rule_min_samples = 5
-        self.binary_rule_confidence_cap = 90.0
-        self.binary_rule_filter_levels = [
-            ['country_code', 'crop_name', 'irrigation', 'area_bucket'],
-            ['country_code', 'crop_name', 'irrigation'],
-            ['country_code', 'crop_name'],
-            ['country_code'],
-            []
-        ]
-
-    @staticmethod
-    def _normalize_yes_no(value):
-        if pd.isna(value):
-            return None
-        val = str(value).strip().lower()
-        if val in {'yes', 'y', '1', 'true'}:
-            return 'Yes'
-        if val in {'no', 'n', '0', 'false'}:
-            return 'No'
-        return None
-
-    def _is_binary_yes_no(self, series):
-        normalized = series.dropna().map(self._normalize_yes_no).dropna().unique().tolist()
-        return len(normalized) > 0 and set(normalized).issubset({'Yes', 'No'})
-
-    def _predict_yes_no_rule(self, target_col, filters):
-        # Progressive filtering: strict -> relaxed until enough samples
-        for level in self.binary_rule_filter_levels:
-            subset = self.df.copy()
-            for col in level:
-                if col in subset.columns and col in filters:
-                    subset = subset[subset[col] == filters[col]]
-            if len(subset) >= self.binary_rule_min_samples:
-                normalized = subset[target_col].dropna().map(self._normalize_yes_no).dropna()
-                if not normalized.empty:
-                    prob_yes = (normalized == 'Yes').mean()
-                    value = 'Yes' if prob_yes >= 0.5 else 'No'
-                    confidence = max(prob_yes, 1 - prob_yes) * 100
-                    confidence = min(confidence, self.binary_rule_confidence_cap)
-                    return value, confidence
-
-        # Smarter fallback using global prevalence
-        global_vals = self.df[target_col].dropna().map(self._normalize_yes_no).dropna()
-        if global_vals.empty:
-            return 'Unknown', 0.0
-
-        prob_yes = (global_vals == 'Yes').mean()
-        if prob_yes < 0.2:
-            return 'No', 65.0
-        if prob_yes > 0.8:
-            return 'Yes', 65.0
-        return 'Unknown', 40.0
         
     def load_data(self, csv_file):
         """Load SAI Framework CSV assessment data"""
@@ -129,34 +76,13 @@ class AssessmentAIPredictor:
             if self.df[col].dtype == 'object':
                 le = LabelEncoder()
                 # Handle missing values
-                values = self.df[col].fillna('Unknown').astype(str)
-                # Ensure 'Unknown' exists in training categories for robust inference
-                classes = values.unique().tolist()
-                if 'Unknown' not in classes:
-                    classes.append('Unknown')
-                le.fit(classes)
-                self.df[col] = values
-                self.df[col + '_encoded'] = le.transform(values)
+                self.df[col] = self.df[col].fillna('Unknown')
+                self.df[col + '_encoded'] = le.fit_transform(self.df[col])
                 self.label_encoders[col] = le
-                # Store most frequent value for safe fallback if needed
-                self.feature_modes[col] = values.mode(dropna=True)[0]
         
         # Convert area to numeric
         if 'area' in self.feature_columns:
             self.df['area'] = pd.to_numeric(self.df['area'], errors='coerce').fillna(0)
-            self.df['area_bucket'] = pd.cut(
-                self.df['area'],
-                bins=[0, 2, 5, 10, 20, 1000],
-                labels=['XS', 'S', 'M', 'L', 'XL'],
-                include_lowest=True
-            ).astype(str)
-
-        # Normalize Yes/No targets once to avoid repeated normalization
-        for col in self.target_columns:
-            if col in self.df.columns:
-                normalized = self.df[col].map(self._normalize_yes_no)
-                if normalized.notna().any():
-                    self.df[col] = normalized
         
         print("✓ Data preparation complete")
     
@@ -176,7 +102,6 @@ class AssessmentAIPredictor:
         X = self.df[X_cols].values
         
         trained_count = 0
-        rule_count = 0
         skipped_count = 0
         
         # Train a model for each target column
@@ -209,14 +134,6 @@ class AssessmentAIPredictor:
                     skipped_count += 1
                     continue
                 
-                # Use rule-based predictor for binary Yes/No indicators
-                if self._is_binary_yes_no(y):
-                    self.models[target_col] = {
-                        'type': 'rule_based'
-                    }
-                    rule_count += 1
-                    continue
-
                 # Create label encoder for target
                 le_target = LabelEncoder()
                 y_encoded = le_target.fit_transform(y)
@@ -226,7 +143,7 @@ class AssessmentAIPredictor:
                     max_depth=3,
                     n_estimators=50,
                     learning_rate=0.1,
-                    objective='multi:softprob',
+                    objective='multi:softmax',
                     random_state=42,
                     verbosity=0
                 )
@@ -235,7 +152,6 @@ class AssessmentAIPredictor:
                 
                 # Store model and encoder
                 self.models[target_col] = {
-                    'type': 'xgboost',
                     'model': model,
                     'encoder': le_target,
                     'feature_cols': X_cols
@@ -253,7 +169,6 @@ class AssessmentAIPredictor:
         
         print(f"\n✅ Training Complete!")
         print(f"   • Successfully trained: {trained_count} models")
-        print(f"   • Rule-based (binary Yes/No): {rule_count} indicators")
         print(f"   • Skipped (insufficient data): {skipped_count} indicators")
         
         return trained_count
@@ -307,9 +222,8 @@ class AssessmentAIPredictor:
                 try:
                     encoded_val = le.transform([input_data[col]])[0]
                 except ValueError:
-                    # Handle unseen category - use 'Unknown' if available, else use mode
-                    fallback = 'Unknown' if 'Unknown' in le.classes_ else self.feature_modes.get(col, le.classes_[0])
-                    encoded_val = le.transform([fallback])[0]
+                    # Handle unseen category - use most common value
+                    encoded_val = le.transform([le.classes_[0]])[0]
                 X_input.append(encoded_val)
             else:
                 X_input.append(input_data[col])
@@ -322,31 +236,6 @@ class AssessmentAIPredictor:
         
         for target_col, model_data in self.models.items():
             try:
-                if model_data.get('type') == 'rule_based':
-                    area_bucket = pd.cut(
-                        pd.Series([area]),
-                        bins=[0, 2, 5, 10, 20, 1000],
-                        labels=['XS', 'S', 'M', 'L', 'XL'],
-                        include_lowest=True
-                    ).astype(str).iloc[0]
-                    value, confidence = self._predict_yes_no_rule(
-                        target_col,
-                        {
-                            'country_code': country,
-                            'crop_name': crop,
-                            'irrigation': irrigation,
-                            'area_bucket': area_bucket
-                        }
-                    )
-                    predictions[target_col] = {
-                        'value': value,
-                        'confidence': confidence,
-                        'method': 'rule_based'
-                    }
-                    if confidence >= 80:
-                        high_confidence_count += 1
-                    continue
-
                 model = model_data['model']
                 encoder = model_data['encoder']
                 
@@ -362,8 +251,7 @@ class AssessmentAIPredictor:
                 
                 predictions[target_col] = {
                     'value': predicted_value,
-                    'confidence': confidence,
-                    'method': 'xgboost'
+                    'confidence': confidence
                 }
                 
                 if confidence >= 80:
@@ -443,7 +331,7 @@ if __name__ == "__main__":
     print("=" * 70)
     
     # Initialize predictor
-    predictor = AssessmentAIPredictor()
+    predictor = XGBoostBalajiPredictor()
     
     # Load data (using training data with 52 records)
     predictor.load_data('Balaji_Framework_Training_Data.csv')
